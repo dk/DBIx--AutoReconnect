@@ -1,4 +1,4 @@
-# $Id: AutoReconnect.pm,v 1.2 2005/07/08 08:28:44 dk Exp $
+# $Id: AutoReconnect.pm,v 1.3 2005/07/08 08:30:09 dk Exp $
 
 package DBIx::AutoReconnect;
 
@@ -195,7 +195,7 @@ DBIx::AutoReconnect - restart DBI calls after reconnecting on failure
 
 =head1 DESCRIPTION
 
-The module wraps C<<DBI->connect>> call with C<<DBIx::AutoReconnect->connect>>
+The module wraps C<< DBI->connect >> call with C<< DBIx::AutoReconnect->connect >>
 call so that any operation with DB connection handle that fails due to
 connection break ( server shutdown, tcp reset etc etc), is automatically
 reconnected.
@@ -221,7 +221,7 @@ the proper DB failure resistance should of course be inherent to the program log
 =head1 USAGE
 
 C<DBIx::AutoReconnect> contains a single method C<get_handle>
-that returns underlying DBI handle, returned from C<<DBI->connect()>>.
+that returns underlying DBI handle, returned from C<< DBI->connect() >>.
 
 The module-specific knobs that can be directly assigned to the object
 handle, are described below
@@ -230,7 +230,7 @@ handle, are described below
 
 =item ReconnectFailure &SUB
 
-Called when C<<DBI->connect> call fails.
+Called when C<< DBI->connect >> call fails.
 
 =item ReconnectTimeout $SECONDS
 
