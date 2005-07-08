@@ -1,4 +1,4 @@
-# $Id: AutoReconnect.pm,v 1.1 2005/07/07 15:12:06 dk Exp $
+# $Id: AutoReconnect.pm,v 1.2 2005/07/08 08:28:44 dk Exp $
 
 package DBIx::AutoReconnect;
 
@@ -9,8 +9,9 @@ use vars qw(%instances %defaults $VERSION);
 $VERSION = '0.01';
 
 %defaults = (
-	ReconnectTimeout => 60,
-	ReconnectFailure => undef,
+	ReconnectTimeout  => 60,
+	ReconnectMaxTries => 5,
+	ReconnectFailure  => undef,
 );
 
 sub connect
@@ -42,9 +43,7 @@ sub connect
 	bless $self, $class;
 	$instances{"$self"} = $profile;
 	
-	$self-> __dbh_connect;
-	
-	return $self;
+	return $self-> __dbh_connect ? $self : undef;
 }
 
 sub __dbh_connect
@@ -55,20 +54,30 @@ sub __dbh_connect
 
 	my $tries = 0;
 	my $downtime = 0;
-	while ( 1) {
-		if ( $self-> {dbh} = DBI-> connect( @{$self->{conninfo}})) {
-			warn "DBIx::AutoReconnect: successfully reconnected after $tries tries and $downtime sec downtime\n"
-				if $tries > 0 and $self->{conninfo}->[3]-> {PrintError};
-			last;	
+	RETRY: while ( 1) {
+		{
+			local $self->{conninfo}->[3]-> {RaiseError} = 0; 
+			if ( $self-> {dbh} = DBI-> connect( @{$self->{conninfo}})) {
+				warn "DBIx::AutoReconnect: successfully reconnected after $tries tries and $downtime sec downtime\n"
+					if $tries > 0 and $self->{conninfo}->[3]-> {PrintError};
+				last RETRY;
+			}
 		}
 		$self-> {ReconnectFailure}->() if $self-> {ReconnectFailure};
+		$tries++;
+		if ( defined ($self-> {ReconnectMaxTries}) and $self-> {ReconnectMaxTries} <= $tries) {
+			if ( $self->{conninfo}->[3]-> {RaiseError}) {
+				die $DBI::errstr;
+			} else {
+				return undef;
+			}
+		}
 		if ( $self-> {ReconnectTimeout} > 0) {
 			warn "DBIx::AutoReconnect: sleeping for $self->{ReconnectTimeout} seconds\n"
 				if $self-> {conninfo}->[3]->{PrintError};
 			sleep $self-> {ReconnectTimeout};
 			$downtime += $self-> {ReconnectTimeout};
 		}
-		$tries++;
 	}
 
 	return $self-> {dbh};
@@ -105,14 +114,17 @@ sub AUTOLOAD
 	my $obj = shift;
 	my $self = $instances{"$obj"};
 
-	Carp::croak( "DBIx::AutoReconnect: not connected" ) unless $self->{dbh};
-
-
 	my ( $ret, @ret);
 
 	my $wa = wantarray;
 
 	while ( 1) {
+		unless ( $self->{dbh}) {
+			$self-> {conninfo}->[3]-> {RaiseError} ?
+				croak( "DBIx::AutoReconnect: not connected" ) :
+				return;
+		}
+
 		eval {
 			local $self->{dbh}->{RaiseError} = 1;
 			if ( $wa) {
@@ -188,6 +200,9 @@ call so that any operation with DB connection handle that fails due to
 connection break ( server shutdown, tcp reset etc etc), is automatically
 reconnected.
 
+The module is useful when a little more robustness is desired for a cheap price;
+the proper DB failure resistance should of course be inherent to the program logic.
+
 =head1 SYNOPSIS
 
      use DBIx::AutoReconnect;
@@ -223,6 +238,13 @@ Seconds to sleep after reconnection attempt fails.
 
 Default: 60
 
+=item ReconnectMaxTries $INTEGER
+
+Max number of tries before giving up. The connections are tried
+indefinitely if C<undef>.
+
+Default: 5
+
 =back
 
 =head1 NOTES
@@ -232,9 +254,11 @@ C<rollback>, and C<commit> die when called, to protect from unintentional use.
 To use transactions, operate with the original DBI handle returned by
 C<get_handle>. C<AutoCommit> is allowed though. 
 
-C<RaiseError> is altogether useless with this module, because the
-DBI errors that may raise the exception, are all wrapped in eval
-by the connection detector code.
+C<RaiseError> is mostly useless with this module, because the DBI errors that
+may raise the exception, are all wrapped in eval by the connection detector
+code. The only place where it is useful, is when C<ReconnectMaxTries> tries are
+exhausted, and depending on C<RaiseError>, the code dies or returns C<undef>
+from the <connect> call.
 
 =head1 SEE ALSO
 
