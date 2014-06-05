@@ -1,4 +1,4 @@
-# $Id: AutoReconnect.pm,v 1.3 2005/07/08 08:30:09 dk Exp $
+# $Id: AutoReconnect.pm,v 1.4 2014/06/05 17:50:23 dk Exp $
 
 package DBIx::AutoReconnect;
 
@@ -12,6 +12,7 @@ $VERSION = '0.01';
 	ReconnectTimeout  => 60,
 	ReconnectMaxTries => 5,
 	ReconnectFailure  => undef,
+	ReconnectSuccess  => undef,
 );
 
 sub connect
@@ -60,6 +61,7 @@ sub __dbh_connect
 			if ( $self-> {dbh} = DBI-> connect( @{$self->{conninfo}})) {
 				warn "DBIx::AutoReconnect: successfully reconnected after $tries tries and $downtime sec downtime\n"
 					if $tries > 0 and $self->{conninfo}->[3]-> {PrintError};
+				$self-> {ReconnectSuccess}->() if $self-> {ReconnectSuccess};
 				last RETRY;
 			}
 		}
@@ -215,6 +217,7 @@ the proper DB failure resistance should of course be inherent to the program log
 	   	PrintError => 0,
 		ReconnectTimeout => 5,
 		ReconnectFailure => sub { warn "oops!" },
+		ReconnectSuccess => sub { warn "okay!" },
 	   },
      );
 
@@ -231,6 +234,10 @@ handle, are described below
 =item ReconnectFailure &SUB
 
 Called when C<< DBI->connect >> call fails.
+
+=item ReconnectSuccess &SUB
+
+Called after reconnection succeeds
 
 =item ReconnectTimeout $SECONDS
 
